@@ -1,13 +1,11 @@
-# 6.0001/6.00 Problem Set 5 - RSS Feed Filter
-# Name:
-# Collaborators:
-# Time:
+#
+# mit - 6.0001 - pset
+
 
 import feedparser
 import string
 import time
 import threading
-import re
 from project_util import translate_html
 from mtTkinter import *
 from datetime import datetime
@@ -56,8 +54,9 @@ def process(url):
 
 # Problem 1
 
-class NewsStory(guid, title, description, link, pubdate):
-    def __init__(self):
+# TODO: NewsStory
+class NewsStory(object):
+    def __init__(self, guid, title, description, link, pubdate):
         self.guid = guid
         self.title = title
         self.description = description
@@ -98,33 +97,55 @@ class Trigger(object):
 
 # Problem 2
 # TODO: PhraseTrigger
-class PhraseTrigger(Trigger, phrase):
-    def __init__(self):
-        self.phrase = phrase
-
-    def get_phrase(self):
-        return self.phrase
+class PhraseTrigger(Trigger):
+    def __init__(self, phrase):
+        self.trigger = phrase
 
     def is_phrase_in(self, text):
-        #newText strips away all punctuation with translate then all spaces with re.sub
-        newText = re.sub(' +', ' ',text.translate(str.maketrans('', '', string.punctuation)))
-        if self.phrase.lower() in newText.lower():
-            return True
-        return False
+        # deal with text to see if phrase in text
+        # first replace  puctuation to space. ,then replace space*2 to space loop until new len == old len. then  phrase.lower in dealed_text
+        # maybe use 're' will be easy
+
+        deal_text = ''
+        for char in text:
+            if char in string.punctuation:
+                deal_text += ' '
+            else:
+                deal_text += char
+        latest_text_len = len(deal_text)
+
+        while True:
+            deal_text = deal_text.replace("  ", " ")
+            if latest_text_len > len(deal_text):
+                latest_text_len = len(deal_text)
+            else:
+                break
+
+        deal_text = deal_text.lower().replace(self.trigger.lower(), "*")
+        deal_text_list = deal_text.split()
+
+        return '*' in deal_text_list
+
+    def get_trigger(self):
+        return self.trigger
+
+    def change_trigger(self, trigger):
+        self.trigger = trigger
 
 
 # Problem 3
 # TODO: TitleTrigger
 class TitleTrigger(PhraseTrigger):
-    def evaluate(self, text):
-        return self.is_phrase_in(self.get_title())
+    def evaluate(self, story):
+        return self.is_phrase_in(story.get_title())
 
 
 # Problem 4
 # TODO: DescriptionTrigger
 class DescriptionTrigger(PhraseTrigger):
-    def evaluate(self, text):
-        return self.is_phrase_in(self.get_description())
+    def evaluate(self, story):
+        return self.is_phrase_in(story.get_description())
+
 
 # TIME TRIGGERS
 
@@ -134,20 +155,68 @@ class DescriptionTrigger(PhraseTrigger):
 #        Input: Time has to be in EST and in the format of "%d %b %Y %H:%M:%S".
 #        Convert time from string to a datetime before saving it as an attribute.
 
+class TimeTrigger(Trigger):
+    def __init__(self, EST_time):
+        self.trigger = datetime.strptime(EST_time, "%d %b %Y %H:%M:%S")
+
+    def get_datetime(self):
+        return self.trigger
+
+    def change_trigger(self, EST_time):
+        self.trigger = datetime.strptime(EST_time, "%d %b %Y %H:%M:%S")
+
+
 # Problem 6
 # TODO: BeforeTrigger and AfterTrigger
+
+
+class BeforeTrigger(TimeTrigger):
+    def evaluate(self, story):
+        return self.get_datetime() > story.get_pubdate().replace(tzinfo=None)
+
+
+class AfterTrigger(TimeTrigger):
+    def evaluate(self, story):
+        return self.get_datetime() < story.get_pubdate().replace(tzinfo=None)
 
 
 # COMPOSITE TRIGGERS
 
 # Problem 7
 # TODO: NotTrigger
+class NotTrigger(Trigger):
+
+    def __init__(self, trigger):
+        self.trigger = trigger
+
+    def evaluate(self, story):
+        return not self.trigger.evaluate(story)
+
+    def change_trigger(self, trigger):
+        self.trigger = trigger
+
 
 # Problem 8
 # TODO: AndTrigger
+class AndTrigger(Trigger):
+    def __init__(self, trigger1, trigger2):
+        self.trigger1 = trigger1
+        self.trigger2 = trigger2
+
+    def evaluate(self, story):
+        return self.trigger1.evaluate(story) and self.trigger2.evaluate(story)
+
 
 # Problem 9
 # TODO: OrTrigger
+
+class OrTrigger(Trigger):
+    def __init__(self, trigger1, trigger2):
+        self.trigger1 = trigger1
+        self.trigger2 = trigger2
+
+    def evaluate(self, story):
+        return self.trigger1.evaluate(story) or self.trigger2.evaluate(story)
 
 
 # ======================
@@ -158,13 +227,20 @@ class DescriptionTrigger(PhraseTrigger):
 def filter_stories(stories, triggerlist):
     """
     Takes in a list of NewsStory instances.
-
     Returns: a list of only the stories for which a trigger in triggerlist fires.
     """
     # TODO: Problem 10
     # This is a placeholder
     # (we're just returning all the stories, with no filtering)
-    return stories
+
+    filtered_stories = []
+    for story in stories:
+        for trigger in triggerlist:
+            if trigger.evaluate(story):
+                filtered_stories.append(story)
+
+    # return stories
+    return filtered_stories
 
 
 # ======================
@@ -174,7 +250,6 @@ def filter_stories(stories, triggerlist):
 def read_trigger_config(filename):
     """
     filename: the name of a trigger configuration file
-
     Returns: a list of trigger objects specified by the trigger configuration
         file.
     """
@@ -191,7 +266,38 @@ def read_trigger_config(filename):
     # line is the list of lines that you need to parse and for which you need
     # to build triggers
 
-    print(lines)  # for now, print it so you see what it contains!
+    # print(lines) # for now, print it so you see what it contains!
+    # dict of function
+    trigger_dict = {'TITLE': TitleTrigger, 'DESCRIPTION': DescriptionTrigger, \
+                    'AFTER': AfterTrigger, 'BEFORE': BeforeTrigger, \
+                    'NOT': NotTrigger}
+    trigger_composite_dict = {'AND': AndTrigger, 'OR': OrTrigger}
+
+    triggerdict = {}
+    triggerlist = []
+    line_list = []
+
+    for line in lines:
+        line_list = line.split(',')
+
+        if line_list[0] == 'ADD':
+            break
+
+        if line_list[1] not in ['AND', 'OR', 'NOT']:
+            triggerdict[line_list[0]] = trigger_dict[line_list[1]](line_list[2])
+            print(triggerdict[line_list[0]])
+        elif not line_list[1] == 'OR':  # !=
+            triggerdict[line_list[0]] = trigger_composite_dict[line_list[1]](triggerdict[line_list[2]],
+                                                                             triggerdict[line_list[3]])
+            print(triggerdict[line_list[0]])
+        else:
+            triggerdict[line_list[0]] = NotTrigger(triggerdict[line_list[2]])
+            print(triggerdict[line_list[0]])
+
+    for i in range(1, len(line_list)):
+        triggerlist.append(triggerdict[line_list[i]])
+
+    return triggerlist
 
 
 SLEEPTIME = 120  # seconds -- how often we poll
@@ -201,15 +307,15 @@ def main_thread(master):
     # A sample trigger list - you might need to change the phrases to correspond
     # to what is currently in the news
     try:
-        t1 = TitleTrigger("election")
-        t2 = DescriptionTrigger("Trump")
-        t3 = DescriptionTrigger("Clinton")
+        t1 = TitleTrigger("Russia")
+        t2 = DescriptionTrigger("Putin")
+        t3 = DescriptionTrigger("Ukraine")
         t4 = AndTrigger(t2, t3)
-        triggerlist = [t1, t4]
+        # triggerlist = [t1]
 
         # Problem 11
         # TODO: After implementing read_trigger_config, uncomment this line
-        # triggerlist = read_trigger_config('triggers.txt')
+        triggerlist = read_trigger_config('triggers.txt')
 
         # HELPER CODE - you don't need to understand this!
         # Draws the popup window that displays the filtered stories
@@ -219,7 +325,7 @@ def main_thread(master):
         scrollbar = Scrollbar(master)
         scrollbar.pack(side=RIGHT, fill=Y)
 
-        t = "Google & Yahoo Top News"
+        t = "Google and Yahoo News"
         title = StringVar()
         title.set(t)
         ttl = Label(master, textvariable=title, font=("Helvetica", 18))
@@ -265,4 +371,3 @@ if __name__ == '__main__':
     t = threading.Thread(target=main_thread, args=(root,))
     t.start()
     root.mainloop()
-
