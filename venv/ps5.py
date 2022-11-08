@@ -1,7 +1,8 @@
 #
 # mit - 6.0001 - pset
 
-
+import collections
+collections.Callable = collections.abc.Callable
 import feedparser
 import string
 import time
