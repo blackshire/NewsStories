@@ -103,9 +103,6 @@ class PhraseTrigger(Trigger):
         self.trigger = phrase
 
     def is_phrase_in(self, text):
-        # deal with text to see if phrase in text
-        # first replace  puctuation to space. ,then replace space*2 to space loop until new len == old len. then  phrase.lower in dealed_text
-        # maybe use 're' will be easy
 
         deal_text = ''
         for char in text:
